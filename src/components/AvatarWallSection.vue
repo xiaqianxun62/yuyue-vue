@@ -1,63 +1,68 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { generateAvatarUsers, type AvatarUser } from '../data/mock'
-import { AVATAR_COLORS, randomInt } from '../utils/random'
+import { listGames, type Game } from '../api/game'
+import { AVATAR_COLORS } from '../utils/random'
 
-const onlineCount = ref(24)
-const avatars = ref<AvatarUser[]>(generateAvatarUsers(24))
-const noticeText = ref('欢迎来到头像墙，实时演示中...')
-const noticeType = ref<'enter' | 'leave'>('enter')
-
-let countTimer: number | null = null
-let avatarTimer: number | null = null
-
-function startCountFluctuation() {
-  countTimer = window.setInterval(() => {
-    const delta = randomInt(-1, 1)
-    const next = onlineCount.value + delta
-    if (next >= 18 && next <= 32) onlineCount.value = next
-  }, 2500)
+/** 头像墙：展示近期球局已报名的球友（真实数据，对外匿名） */
+interface WallUser {
+  userId: number
+  name: string
+  rating: number
+  gameTitle: string
 }
 
-function startAvatarAnimation() {
-  const tick = () => {
-    const isEnter = Math.random() > 0.45
-    if (isEnter && avatars.value.length < 32) {
-      const newUser = generateAvatarUsers(1)[0]
-      avatars.value.push(newUser)
-      showNotice(newUser, 'enter')
-    } else if (!isEnter && avatars.value.length > 18) {
-      const idx = randomInt(0, avatars.value.length - 1)
-      const removed = avatars.value[idx]
-      avatars.value.splice(idx, 1)
-      showNotice(removed, 'leave')
+const users = ref<WallUser[]>([])
+const gameCount = ref(0)
+const state = ref<'loading' | 'data' | 'empty' | 'error'>('loading')
+const latestText = ref('正在获取报名动态...')
+
+let refreshTimer: number | null = null
+
+function colorOf(userId: number): string {
+  return AVATAR_COLORS[userId % AVATAR_COLORS.length]
+}
+
+async function load(): Promise<void> {
+  state.value = 'loading'
+  try {
+    const games: Game[] = await listGames()
+    gameCount.value = games.length
+
+    const byUser = new Map<number, WallUser>()
+    const timeline: { name: string; title: string }[] = []
+    for (const g of games) {
+      for (const r of g.registrations ?? []) {
+        byUser.set(r.userId, {
+          userId: r.userId,
+          name: r.anonymousName,
+          rating: r.rating,
+          gameTitle: g.title,
+        })
+        timeline.push({ name: r.anonymousName, title: g.title })
+      }
     }
-    avatarTimer = window.setTimeout(tick, randomInt(2000, 4000))
+    users.value = [...byUser.values()]
+
+    const latest = timeline.length ? timeline[timeline.length - 1] : null
+    latestText.value = latest
+      ? `${latest.name} 报名了《${latest.title}》`
+      : '暂无报名动态，快去下方球局抢第一个位置'
+
+    state.value = users.value.length === 0 ? 'empty' : 'data'
+  } catch {
+    users.value = []
+    state.value = 'error'
   }
-  avatarTimer = window.setTimeout(tick, randomInt(2000, 4000))
-}
-
-function showNotice(user: AvatarUser, type: 'enter' | 'leave') {
-  noticeText.value = `${user.nickname} · ${user.dept} ${type === 'enter' ? '进场了' : '离场了'}`
-  noticeType.value = type
-}
-
-function avatarBg(colorIndex: number) {
-  return AVATAR_COLORS[colorIndex % AVATAR_COLORS.length]
-}
-
-function avatarInitial(nickname: string) {
-  return nickname.charAt(0)
 }
 
 onMounted(() => {
-  startCountFluctuation()
-  startAvatarAnimation()
+  load()
+  // 报名是异步的，定时刷新保持与实际报名一致
+  refreshTimer = window.setInterval(load, 30000)
 })
 
 onBeforeUnmount(() => {
-  if (countTimer) clearInterval(countTimer)
-  if (avatarTimer) clearTimeout(avatarTimer)
+  if (refreshTimer) clearInterval(refreshTimer)
 })
 </script>
 
@@ -66,28 +71,41 @@ onBeforeUnmount(() => {
     <div class="container">
       <div class="wall-header">
         <div class="wall-title-row">
-          <h2 class="wall-title">在线头像墙</h2>
-          <span class="demo-badge">演示数据 · 前端模拟</span>
+          <h2 class="wall-title">报名头像墙</h2>
+          <span class="live-badge">实时数据 · 来自球局报名</span>
         </div>
         <div class="live-dot">
-          <span>当前在线 <strong>{{ onlineCount }}</strong> 人</span>
+          <span>已报名 <strong>{{ users.length }}</strong> 人 · {{ gameCount }} 个球局</span>
         </div>
       </div>
+
       <div class="notice-bar" aria-live="polite">
-        <div class="notice-item" :class="`notice-${noticeType}`">
+        <div class="notice-item notice-enter">
           <span class="notice-dot"></span>
-          <span>{{ noticeText }}</span>
+          <span>{{ latestText }}</span>
         </div>
       </div>
-      <div class="avatar-grid">
+
+      <div v-if="state === 'loading'" class="wall-state">正在加载报名信息...</div>
+
+      <div v-else-if="state === 'error'" class="wall-state" role="alert">
+        报名信息加载失败，请确认后端已启动
+        <button class="ranking-retry-btn" type="button" @click="load">重新加载</button>
+      </div>
+
+      <div v-else-if="state === 'empty'" class="wall-state" role="status">
+        还没有人报名，去下方球局列表抢占第一个位置
+      </div>
+
+      <div v-else class="avatar-grid">
         <div
-          v-for="user in avatars"
-          :key="user.id"
+          v-for="u in users"
+          :key="u.userId"
           class="avatar-item"
-          :title="user.nickname + ' · ' + user.dept"
+          :title="`${u.name} · ${u.rating} 分 · ${u.gameTitle}`"
         >
-          <div class="avatar-inner" :style="{ background: avatarBg(user.colorIndex) }">
-            {{ avatarInitial(user.nickname) }}
+          <div class="avatar-inner" :style="{ background: colorOf(u.userId) }">
+            {{ u.name.charAt(0) }}
           </div>
         </div>
       </div>

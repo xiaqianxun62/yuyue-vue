@@ -34,6 +34,7 @@ function persist(next: AuthResult | null): void {
       name: next.name,
       gender: next.gender,
       college: next.college,
+      studentNo: next.studentNo ?? null,
       rating: next.rating,
       gamesPlayed: next.gamesPlayed,
     }
@@ -66,6 +67,13 @@ async function register(payload: RegisterPayload): Promise<AuthResult> {
     return accept(await authApi.register(payload))
   } finally {
     submitting.value = false
+  }
+}
+
+/** 编辑资料后同步本地缓存 */
+function applyProfile(profile: Partial<AuthResult>): void {
+  if (user.value) {
+    persist({ ...user.value, ...profile })
   }
 }
 
@@ -110,6 +118,7 @@ export function useAuth() {
     restored,
     login,
     register,
+    applyProfile,
     logout,
     restore,
   }

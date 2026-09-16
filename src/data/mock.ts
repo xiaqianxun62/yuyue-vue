@@ -1,5 +1,5 @@
-import type { Department } from '../utils/random'
-import { DEPARTMENTS, randomInt, randomItem } from '../utils/random'
+import { randomInt, randomItem } from '../utils/random'
+import type { EloKRule, EloRuleScenario, EloRules } from '../api/elo'
 
 // ============ 功能卡片 ============
 export interface FeatureItem {
@@ -142,130 +142,70 @@ export const SIGNUP_STEPS: SignupStep[] = [
 ]
 
 // ============ ELO 规则 ============
-export interface KFactorRule {
-  games: string
-  k: number
-  strongWin: number
-  weakWin: number
-}
-
-export const K_FACTOR_RULES: KFactorRule[] = [
-  { games: '≤ 20 场', k: 40, strongWin: 9.6, weakWin: 30.4 },
-  { games: '21 – 60 场', k: 24, strongWin: 5.8, weakWin: 18.2 },
-  { games: '> 60 场', k: 16, strongWin: 3.8, weakWin: 12.2 },
+// 结构与后端 /elo/rules 一致，仅在后端不可用（未启动/报错）时作为兜底展示
+export const K_FACTOR_RULES: EloKRule[] = [
+  { games: '≤ 20 场', k: 40, strongWin: 9.6, strongLoss: -30.4, weakWin: 30.4, weakLoss: -9.6 },
+  { games: '21 – 60 场', k: 24, strongWin: 5.8, strongLoss: -18.2, weakWin: 18.2, weakLoss: -5.8 },
+  { games: '> 60 场', k: 16, strongWin: 3.8, strongLoss: -12.2, weakWin: 12.2, weakLoss: -3.8 },
 ]
 
-export interface EloScenario {
-  scene: string
-  matchup: string
-  expect: number
-  winDelta: string
-  lossDelta: string
-  note: string
-}
-
-export const ELO_SCENARIOS: EloScenario[] = [
+export const ELO_SCENARIOS: EloRuleScenario[] = [
   {
     scene: '势均力敌',
     matchup: '1200 vs 1200',
     expect: 0.5,
-    winDelta: '+20',
-    lossDelta: '−20',
+    winDelta: 20,
+    lossDelta: -20,
+    perPlayer: false,
     note: '五五开，胜负波动最大',
   },
   {
     scene: '强打弱',
     matchup: '1400 vs 1200',
     expect: 0.76,
-    winDelta: '+9.6',
-    lossDelta: '−30.4',
+    winDelta: 10,
+    lossDelta: -30,
+    perPlayer: false,
     note: '强胜弱加分少，强负弱扣分多',
   },
   {
     scene: '弱胜强',
     matchup: '1200 vs 1400',
     expect: 0.24,
-    winDelta: '+30.4',
-    lossDelta: '−9.6',
+    winDelta: 30,
+    lossDelta: -10,
+    perPlayer: false,
     note: '爆冷奖励大',
   },
   {
     scene: '双打示例',
     matchup: '均值 1300 vs 1100',
     expect: 0.76,
-    winDelta: '各 +9.6',
-    lossDelta: '各 −30.4',
+    winDelta: 10,
+    lossDelta: -30,
+    perPlayer: true,
     note: 'A 队 (1400, 1200) vs B 队 (1200, 1000)',
   },
 ]
 
-// ============ ELO 积分榜 ============
-export interface RankingItem {
-  name: string
-  dept: string
-  rating: number
-  win: number
-  loss: number
+/** 规则面板兜底：后端 /elo/rules 不通时使用 */
+export const FALLBACK_ELO_RULES: EloRules = {
+  defaultRating: 1200,
+  principle: 'ELO 浮动制：赢强的多加分、赢弱的少加分、输给弱的扣分多',
+  formula: 'E = 1 / (1 + 10^((对手分 − 己方分) / 400))，Δ = K × (S − E)',
+  kRules: K_FACTOR_RULES,
+  scenarios: ELO_SCENARIOS,
+  notes: [
+    'K 表为理论值保留一位小数，真实结算按四舍五入取整（如 9.6 → +10）',
+    '初始积分 1200 分，历史场次按已结算对局数累计',
+  ],
+  doublesNotes: [
+    '同队两人使用同一个组合期望 E（按队伍平均分计算），但各自按自己的 K（各自历史场次）更新积分',
+    'ELO 自带防刷：同一组合反复刷分，积分差拉开后强方几乎不得分',
+  ],
 }
 
-export const RANKING_DATA: RankingItem[] = [
-  { name: '陈**', dept: '计算机学院', rating: 1648, win: 20, loss: 5 },
-  { name: '林**', dept: '体育学院', rating: 1612, win: 18, loss: 4 },
-  { name: '李**', dept: '电子工程学院', rating: 1589, win: 17, loss: 6 },
-  { name: '王**', dept: '机械工程学院', rating: 1553, win: 15, loss: 5 },
-  { name: '杨**', dept: '生命学院', rating: 1530, win: 14, loss: 7 },
-  { name: '赵**', dept: '经管学院', rating: 1504, win: 16, loss: 9 },
-  { name: '周**', dept: '数学学院', rating: 1482, win: 13, loss: 6 },
-  { name: '吴**', dept: '物理学院', rating: 1461, win: 12, loss: 7 },
-  { name: '郑**', dept: '外国语学院', rating: 1437, win: 11, loss: 8 },
-  { name: '孙**', dept: '建筑学院', rating: 1410, win: 10, loss: 7 },
-  { name: '何**', dept: '新闻学院', rating: 1388, win: 9, loss: 8 },
-  { name: '高**', dept: '材料学院', rating: 1365, win: 10, loss: 9 },
-  { name: '徐**', dept: '法学院', rating: 1332, win: 8, loss: 9 },
-  { name: '韩**', dept: '化学学院', rating: 1301, win: 7, loss: 10 },
-  { name: '罗**', dept: '人文学院', rating: 1278, win: 6, loss: 11 },
-  { name: '冯**', dept: '计算机学院', rating: 1240, win: 5, loss: 12 },
-]
-
-export const RANK_TOP_N = 10
-
-// ============ 头像墙 ============
-export interface AvatarUser {
-  id: string
-  nickname: string
-  dept: Department
-  colorIndex: number
-}
-
-const NICK_POOL = [
-  '小飞侠',
-  '羽毛球迷',
-  '球场老炮',
-  '网前高手',
-  '后场杀手',
-  '步法王',
-  '接发怪',
-  '吊球精',
-  '杀球狂',
-  '平抽挡',
-]
-
-export function generateAvatarUsers(count: number): AvatarUser[] {
-  const users: AvatarUser[] = []
-  const usedIds = new Set<string>()
-  while (users.length < count) {
-    const id = 'u' + Math.random().toString(36).slice(2, 8)
-    if (usedIds.has(id)) continue
-    usedIds.add(id)
-    users.push({
-      id,
-      nickname: randomItem(NICK_POOL) + '#' + randomInt(100, 999),
-      dept: randomItem(DEPARTMENTS as unknown as Department[]),
-      colorIndex: randomInt(0, 7),
-    })
-  }
-  return users
-}
+// 积分榜数据来自后端 /ranking，头像墙数据来自后端 /games 的报名列表，均不再使用本地假数据
 
 // ============ 聊天室 ============
 export interface ChatMessage {

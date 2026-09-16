@@ -151,7 +151,7 @@ onBeforeUnmount(() => {
       <div class="wall-header">
         <div class="wall-title-row">
           <h2 class="wall-title">临时实时聊天室</h2>
-          <span class="chat-badge">临时会话 · 不保存</span>
+          <span class="chat-badge">演示会话 · 后端暂无消息接口</span>
         </div>
         <div class="chat-nickname">
           你的匿名身份：<strong>{{ myNickname }}</strong>

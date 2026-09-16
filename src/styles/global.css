@@ -104,6 +104,9 @@
     cursor: pointer;
     text-decoration: none;
   }
+  /* 左右两块斜角填充扫入 + 文字变色（样式来源：Uiverse by Ali-Tahmazi99）
+     偏移量改用百分比而非固定像素：两块各扫到 70% 时，中间恒定重叠 16%，
+     按钮宽度怎么变、窄屏怎么缩，中间都不会露出那条透明的斜缝 */
   .cta-btn::before,
   .cta-btn::after {
     content: '';
@@ -113,20 +116,26 @@
     height: 100%;
     transform: skew(15deg);
     transition: all 0.5s;
-    overflow: hidden;
     z-index: -1;
   }
   .cta-btn::before {
-    left: -10px;
+    left: -12%;
     background: #207c48;
   }
   .cta-btn::after {
-    right: -7px;
+    right: -12%;
     background: #2F9B57;
   }
   .cta-btn:hover::before,
-  .cta-btn:hover::after {
-    width: 58%;
+  .cta-btn:hover::after,
+  .cta-btn:focus-visible::before,
+  .cta-btn:focus-visible::after {
+    width: 70%;
+  }
+  /* 兜底：万一极窄屏仍有像素级缝隙，露出的是同色底而不是页面底色 */
+  .cta-btn:hover,
+  .cta-btn:focus-visible {
+    background: #207c48;
   }
   .cta-btn span {
     color:#3E8B57 ;
@@ -434,6 +443,134 @@
     color: var(--text-muted);
     background: var(--border-light);
     border-radius: 999px;
+  }
+  /* 实时数据标识：与 demo-badge 区分，绿色代表来自后端真实数据 */
+  .live-badge {
+    display: inline-flex;
+    align-items: center;
+    height: 24px;
+    padding: 0 10px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--primary);
+    background: var(--success-bg);
+    border-radius: 999px;
+  }
+  /* 头像墙 / 列表通用状态占位（加载 / 空 / 失败） */
+  .wall-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 36px 16px;
+    color: var(--text-muted);
+    font-size: 14px;
+    text-align: center;
+  }
+
+  /* 近期球局列表（数据来自后端 /games） */
+  .games-block {
+    margin-top: 36px;
+  }
+  .games-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .games-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--text);
+  }
+  .game-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .game-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 18px;
+    background: var(--card);
+    border: 1px solid var(--border-light);
+    border-radius: 14px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .game-card:hover {
+    border-color: var(--primary-light);
+    box-shadow: var(--shadow-sm);
+  }
+  .game-main {
+    min-width: 0;
+  }
+  .game-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .game-meta {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .game-status {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--success-bg);
+    color: var(--primary);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .game-status.done {
+    background: var(--border-light);
+    color: var(--text-muted);
+  }
+  .game-side {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  .game-count {
+    font-size: 13px;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .game-btn {
+    height: 34px;
+    padding: 0 16px;
+    border: none;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .game-btn:hover:not(:disabled) {
+    background: var(--accent-dark);
+  }
+  .game-btn:disabled {
+    background: var(--border-light);
+    color: var(--text-muted);
+    cursor: not-allowed;
+  }
+  .game-tip {
+    margin-top: 14px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--primary);
+  }
+  .game-tip.err {
+    color: #a0522d;
   }
   .wall-count {
     font-size: 14px;
@@ -1313,6 +1450,11 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+.elo-expect {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
 .elo-delta {
   display: inline-flex;
   align-items: center;
@@ -1390,6 +1532,30 @@
   height: 6px;
   border-radius: 50%;
   background: var(--primary);
+}
+.elo-formula {
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--bg);
+  border: 1px dashed var(--border-light);
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin-bottom: 16px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.elo-notes {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+.elo-notes li {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.6;
 }
 .elo-rules-note {
   margin-top: 16px;
