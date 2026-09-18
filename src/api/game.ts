@@ -1,4 +1,5 @@
 import { request } from './http'
+import type { AvatarView } from './auth'
 
 /** 球局报名人（对外匿名，不含真实姓名学号） */
 export interface RegistrationItem {
@@ -6,6 +7,10 @@ export interface RegistrationItem {
   anonymousName: string
   /** 展示名：实名报名且查看者已登录=真实姓名，否则=匿名昵称 */
   displayName?: string
+  /** 兼容旧前端：个人头像 URL（实名+已登录才有值） */
+  avatar?: string
+  /** 展示头像：实名+已登录=个人头像，否则=系统匿名头像 */
+  displayAvatar?: AvatarView | null
   /** 1 匿名 / 0 实名 */
   anonymous?: number
   /** 1男 2女 0未知 */
@@ -65,14 +70,14 @@ export function getGame(id: number): Promise<Game> {
 }
 
 /**
- * 报名：写入报名并投递 Kafka，由 clawbot 同步微信群接龙
+ * 报名：写入报名记录并刷新报名计数
  * @param anonymous true=匿名（默认），false=实名（名单对登录用户显示真实姓名）
  */
 export function registerGame(id: number, anonymous = true): Promise<Game> {
   return request<Game>(`/games/${id}/register`, { method: 'POST', body: { anonymous } })
 }
 
-/** 取消报名：删除报名记录并投递 Kafka，由 clawbot 从微信群接龙移除 */
+/** 取消报名：删除报名记录并刷新报名计数（仅报名中的球局可取消） */
 export function cancelRegisterGame(id: number): Promise<Game> {
   return request<Game>(`/games/${id}/register`, { method: 'DELETE' })
 }

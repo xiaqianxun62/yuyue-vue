@@ -1,4 +1,13 @@
-import { request } from './http'
+import { request, resolveUrl, uploadFile } from './http'
+
+/** 头像展示视图（后端 AvatarView）：渲染优先级 imageUrl > emoji + bgColor > 姓名首字兜底 */
+export interface AvatarView {
+  id: number | null
+  name?: string
+  imageUrl?: string | null
+  emoji?: string | null
+  bgColor?: string | null
+}
 
 /** 注册 / 登录 / 我的信息 的统一返回结构 */
 export interface AuthResult {
@@ -13,6 +22,12 @@ export interface AuthResult {
   studentNo: string | null
   /** 匿名昵称，如「球友#1111」 */
   anonymousName: string | null
+  /** 个人头像 URL */
+  avatar: string | null
+  /** 选中的系统匿名头像 id */
+  anonymousAvatarId: number | null
+  /** 匿名头像视图（id 为空时回退默认头像） */
+  anonymousAvatar: AvatarView | null
   rating: number
   gamesPlayed: number
 }
@@ -37,8 +52,10 @@ export interface ProfilePayload {
   gender?: number
   college?: string
   studentNo?: string
-  /** 匿名昵称，格式「球友#」+ 4 位数字 */
-  anonymousName?: string
+  /** 个人头像 URL（http(s):// 或 / 开头） */
+  avatar?: string
+  /** 选中的系统匿名头像 id */
+  anonymousAvatarId?: number
 }
 
 export function login(payload: LoginPayload): Promise<AuthResult> {
@@ -60,4 +77,20 @@ export function updateProfile(payload: ProfilePayload): Promise<AuthResult> {
 
 export function logout(): Promise<void> {
   return request<void>('/auth/logout', { method: 'POST' })
+}
+
+/** 系统预置匿名头像列表 */
+export function listAnonymousAvatars(): Promise<AvatarView[]> {
+  return request<AvatarView[]>('/auth/anonymous-avatars')
+}
+
+/** 上传个人头像，返回 { avatar: url } */
+export async function uploadAvatar(file: File): Promise<string> {
+  const res = await uploadFile<{ avatar: string }>('/auth/avatar', file, 'file')
+  return res?.avatar ?? ''
+}
+
+/** 把后端返回的头像 URL 补全为完整 URL */
+export function resolveAvatarUrl(url: string | null | undefined): string {
+  return resolveUrl(url)
 }

@@ -36,6 +36,9 @@ function persist(next: AuthResult | null): void {
       college: next.college,
       studentNo: next.studentNo ?? null,
       anonymousName: next.anonymousName ?? null,
+      avatar: next.avatar ?? null,
+      anonymousAvatarId: next.anonymousAvatarId ?? null,
+      anonymousAvatar: next.anonymousAvatar ?? null,
       rating: next.rating,
       gamesPlayed: next.gamesPlayed,
     }

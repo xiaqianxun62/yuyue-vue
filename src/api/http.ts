@@ -39,6 +39,14 @@ export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY)
 }
 
+/** 后端相对路径补全为完整 URL（如 /uploads/xxx → http://localhost:8080/uploads/xxx） */
+export function resolveUrl(url: string | null | undefined): string {
+  if (!url) return ''
+  if (/^https?:\/\//.test(url)) return url
+  if (url.startsWith('/')) return BASE_URL + url
+  return BASE_URL + '/' + url
+}
+
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
   body?: unknown
@@ -76,6 +84,44 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
       window.dispatchEvent(new CustomEvent('yuyue:unauthorized'))
     }
     throw new ApiError(payload.code, payload.message || '请求失败')
+  }
+  return payload.data
+}
+
+/**
+ * multipart 文件上传：带 token，返回业务数据（与 request 一样解包 ApiResponse）
+ * @param path 接口路径
+ * @param file 要上传的文件
+ * @param field 文件字段名，默认 file
+ */
+export async function uploadFile<T>(path: string, file: File, field = 'file'): Promise<T> {
+  const headers: Record<string, string> = {}
+  const token = getToken()
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
+
+  const form = new FormData()
+  form.append(field, file)
+
+  let res: Response
+  try {
+    res = await fetch(BASE_URL + path, { method: 'POST', headers, body: form })
+  } catch {
+    throw new ApiError(-1, `无法连接服务器，请确认后端已启动（${BASE_URL}）`)
+  }
+
+  if (!res.ok) {
+    throw new ApiError(res.status, `请求失败（HTTP ${res.status}）`)
+  }
+
+  const payload = (await res.json()) as ApiResponse<T>
+  if (payload.code !== 0) {
+    if (payload.code === 401) {
+      clearToken()
+      window.dispatchEvent(new CustomEvent('yuyue:unauthorized'))
+    }
+    throw new ApiError(payload.code, payload.message || '上传失败')
   }
   return payload.data
 }

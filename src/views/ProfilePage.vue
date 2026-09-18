@@ -2,7 +2,8 @@
 import { onMounted, reactive, ref, watch } from 'vue'
 import SvgIcon from '../components/SvgIcon.vue'
 import * as authApi from '../api/auth'
-import type { AuthResult } from '../api/auth'
+import type { AuthResult, AvatarView } from '../api/auth'
+import { resolveAvatarUrl } from '../api/auth'
 import { useAuth } from '../composables/useAuth'
 
 /** 独立「编辑个人信息」页：#/profile */
@@ -28,7 +29,8 @@ interface ProfileForm {
   gender: number
   college: string
   studentNo: string
-  anonymousName: string
+  avatar: string
+  anonymousAvatarId: number | null
 }
 
 const form = reactive<ProfileForm>({
@@ -36,11 +38,15 @@ const form = reactive<ProfileForm>({
   gender: 0,
   college: COLLEGES[0],
   studentNo: '',
-  anonymousName: '',
+  avatar: '',
+  anonymousAvatarId: null,
 })
 const saving = ref(false)
+const uploadingAvatar = ref(false)
 const error = ref('')
 const success = ref('')
+/** 系统预置匿名头像列表 */
+const anonymousAvatars = ref<AvatarView[]>([])
 
 function fill(): void {
   if (!user.value) return
@@ -48,7 +54,161 @@ function fill(): void {
   form.gender = user.value.gender ?? 0
   form.college = user.value.college || COLLEGES[0]
   form.studentNo = user.value.studentNo ?? ''
-  form.anonymousName = user.value.anonymousName ?? ''
+  form.avatar = user.value.avatar ?? ''
+  form.anonymousAvatarId = user.value.anonymousAvatarId ?? null
+}
+
+async function loadAnonymousAvatars(): Promise<void> {
+  try {
+    const list = await authApi.listAnonymousAvatars()
+    anonymousAvatars.value = list
+    // 没选过时默认选第一个
+    if (form.anonymousAvatarId === null && list.length > 0) {
+      form.anonymousAvatarId = list[0].id
+    }
+  } catch {
+    anonymousAvatars.value = []
+  }
+}
+
+/** 选择图片后先打开裁剪弹层，确认裁剪后再上传 */
+async function onPickFile(event: Event): Promise<void> {
+  const target = event.target as HTMLInputElement
+  const file = target.files && target.files[0]
+  // 清空 input value，便于同一文件再次触发 change
+  target.value = ''
+  if (!file) return
+  if (!file.type.startsWith('image/')) {
+    error.value = '请选择图片文件'
+    return
+  }
+  error.value = ''
+  if (cropObjectUrl) URL.revokeObjectURL(cropObjectUrl)
+  cropObjectUrl = URL.createObjectURL(file)
+  try {
+    const dim = await loadImageSize(cropObjectUrl)
+    crop.src = cropObjectUrl
+    crop.naturalW = dim.w
+    crop.naturalH = dim.h
+    crop.minScale = Math.max(CROP_FRAME / dim.w, CROP_FRAME / dim.h)
+    crop.scale = crop.minScale
+    crop.x = 0
+    crop.y = 0
+    crop.visible = true
+  } catch {
+    URL.revokeObjectURL(cropObjectUrl)
+    cropObjectUrl = ''
+    error.value = '图片加载失败'
+  }
+}
+
+/* ---------- 头像裁剪（零依赖：指针拖拽 + 按钮/滚轮缩放 + canvas 导出） ---------- */
+
+const CROP_FRAME = 320
+const crop = reactive({
+  visible: false,
+  src: '',
+  naturalW: 0,
+  naturalH: 0,
+  scale: 1,
+  minScale: 1,
+  x: 0,
+  y: 0,
+})
+const cropping = ref(false)
+let cropObjectUrl = ''
+let dragStart: { px: number; py: number; x: number; y: number } | null = null
+
+function loadImageSize(src: string): Promise<{ w: number; h: number }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight })
+    img.onerror = reject
+    img.src = src
+  })
+}
+
+function clampCropOffset(): void {
+  const maxX = Math.max((crop.naturalW * crop.scale - CROP_FRAME) / 2, 0)
+  const maxY = Math.max((crop.naturalH * crop.scale - CROP_FRAME) / 2, 0)
+  crop.x = Math.min(maxX, Math.max(-maxX, crop.x))
+  crop.y = Math.min(maxY, Math.max(-maxY, crop.y))
+}
+
+function onCropPointerDown(e: PointerEvent): void {
+  ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  dragStart = { px: e.clientX, py: e.clientY, x: crop.x, y: crop.y }
+}
+
+function onCropPointerMove(e: PointerEvent): void {
+  if (!dragStart) return
+  crop.x = dragStart.x + (e.clientX - dragStart.px)
+  crop.y = dragStart.y + (e.clientY - dragStart.py)
+  clampCropOffset()
+}
+
+function onCropPointerUp(): void {
+  dragStart = null
+}
+
+function zoomCrop(delta: number): void {
+  crop.scale = Math.min(crop.minScale * 5, Math.max(crop.minScale, crop.scale + delta))
+  clampCropOffset()
+}
+
+function onCropWheel(e: WheelEvent): void {
+  zoomCrop(e.deltaY < 0 ? crop.minScale * 0.2 : -crop.minScale * 0.2)
+}
+
+function closeCrop(): void {
+  crop.visible = false
+  if (cropObjectUrl) {
+    URL.revokeObjectURL(cropObjectUrl)
+    cropObjectUrl = ''
+  }
+  crop.src = ''
+}
+
+async function confirmCrop(): Promise<void> {
+  cropping.value = true
+  error.value = ''
+  try {
+    // 裁剪框映射到原图的正方形区域
+    const size = CROP_FRAME / crop.scale
+    const sx = (crop.naturalW - size) / 2 - crop.x / crop.scale
+    const sy = (crop.naturalH - size) / 2 - crop.y / crop.scale
+    const canvas = document.createElement('canvas')
+    canvas.width = 480
+    canvas.height = 480
+    const c = canvas.getContext('2d')
+    if (!c) throw new Error('浏览器不支持图片处理')
+    const img = new Image()
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve()
+      img.onerror = () => reject(new Error('图片读取失败'))
+      img.src = crop.src
+    })
+    c.drawImage(img, sx, sy, size, size, 0, 0, 480, 480)
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, 'image/jpeg', 0.9),
+    )
+    if (!blob) throw new Error('图片导出失败')
+    const file = new File([blob], 'avatar.jpg', { type: 'image/jpeg' })
+    closeCrop()
+    uploadingAvatar.value = true
+    const url = await authApi.uploadAvatar(file)
+    form.avatar = url
+    success.value = '头像已上传，记得点保存'
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : '头像处理失败'
+  } finally {
+    cropping.value = false
+    uploadingAvatar.value = false
+  }
+}
+
+function pickAnonymousAvatar(item: AvatarView): void {
+  form.anonymousAvatarId = item.id
 }
 
 onMounted(async () => {
@@ -56,6 +216,7 @@ onMounted(async () => {
     await restore()
   }
   fill()
+  await loadAnonymousAvatars()
 })
 
 watch(user, fill)
@@ -68,11 +229,6 @@ async function handleSave(): Promise<void> {
     error.value = '请填写姓名'
     return
   }
-  const anonymousName = form.anonymousName.trim()
-  if (anonymousName && !/^球友#\d{4}$/.test(anonymousName)) {
-    error.value = '匿名名称格式为「球友#1111」：「球友#」+ 4 位数字'
-    return
-  }
   saving.value = true
   try {
     const updated: AuthResult = await authApi.updateProfile({
@@ -80,7 +236,8 @@ async function handleSave(): Promise<void> {
       gender: Number(form.gender),
       college: form.college,
       studentNo: form.studentNo.trim(),
-      anonymousName,
+      avatar: form.avatar,
+      anonymousAvatarId: form.anonymousAvatarId ?? undefined,
     })
     applyProfile(updated)
     success.value = '资料已保存'
@@ -154,16 +311,61 @@ async function handleSave(): Promise<void> {
               <span class="hint">绑定学号后可用「学号 + 密码」登录；留空表示不修改</span>
             </label>
 
-            <label class="field">
+            <div class="field">
+              <span class="label">个人头像</span>
+              <div class="avatar-row">
+                <label class="self-avatar" :class="{ uploading: uploadingAvatar }">
+                  <img
+                    v-if="form.avatar"
+                    class="self-avatar-img"
+                    :src="resolveAvatarUrl(form.avatar)"
+                    alt="个人头像"
+                  />
+                  <span v-else class="self-avatar-placeholder">点击上传</span>
+                  <span v-if="uploadingAvatar" class="self-avatar-mask">上传中…</span>
+                  <input
+                    class="avatar-input"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    @change="onPickFile"
+                  />
+                </label>
+                <span class="hint">轮排表展示真实身份用；支持 jpg / png / webp / gif，≤ 5MB</span>
+              </div>
+            </div>
+
+            <div class="field">
               <span class="label">匿名名称</span>
-              <input
-                v-model="form.anonymousName"
-                class="input"
-                type="text"
-                placeholder="球友#1111"
-              />
-              <span class="hint">匿名报名时对外显示的名称；格式「球友#」+ 4 位数字，留空表示不修改</span>
-            </label>
+              <span class="hint">{{ user?.anonymousName || '系统分配中' }} · 由系统分配，不可修改</span>
+            </div>
+
+            <div class="field">
+              <span class="label">羽球形象（匿名头像）</span>
+              <div class="anon-grid">
+                <button
+                  v-for="(item, idx) in anonymousAvatars"
+                  :key="item.id ?? idx"
+                  type="button"
+                  class="anon-item"
+                  :class="{ active: form.anonymousAvatarId === item.id }"
+                  @click="pickAnonymousAvatar(item)"
+                >
+                  <img
+                    v-if="item.imageUrl"
+                    class="anon-img"
+                    :src="resolveAvatarUrl(item.imageUrl ?? '')"
+                    alt=""
+                  />
+                  <span
+                    v-else
+                    class="anon-emoji"
+                    :style="{ background: item.bgColor || '#14665b' }"
+                  >{{ item.emoji || '球' }}</span>
+                  <span class="anon-name">{{ item.name }}</span>
+                </button>
+              </div>
+              <span class="hint">报名名单用匿名头像；轮排表用个人头像</span>
+            </div>
 
             <p v-if="error" class="msg error">{{ error }}</p>
             <p v-if="success" class="msg success">{{ success }}</p>
@@ -184,6 +386,48 @@ async function handleSave(): Promise<void> {
         </div>
       </section>
     </main>
+
+    <!-- 头像裁剪弹层 -->
+    <div
+      v-if="crop.visible"
+      class="crop-mask"
+      @wheel.prevent="onCropWheel"
+    >
+      <div class="crop-dialog">
+        <div class="crop-title">拖动调整位置，缩放后裁剪为方形头像</div>
+        <div
+          class="crop-frame"
+          @pointerdown="onCropPointerDown"
+          @pointermove="onCropPointerMove"
+          @pointerup="onCropPointerUp"
+          @pointercancel="onCropPointerUp"
+        >
+          <img
+            class="crop-img"
+            :src="crop.src"
+            alt="待裁剪头像"
+            draggable="false"
+            @dragstart.prevent
+            :style="{
+              width: crop.naturalW * crop.scale + 'px',
+              height: crop.naturalH * crop.scale + 'px',
+              transform: `translate(calc(-50% + ${crop.x}px), calc(-50% + ${crop.y}px))`,
+            }"
+          />
+          <span class="crop-ring"></span>
+        </div>
+        <div class="crop-zoom">
+          <button type="button" class="zoom-btn" @click="zoomCrop(-crop.minScale * 0.2)">−</button>
+          <button type="button" class="zoom-btn" @click="zoomCrop(crop.minScale * 0.2)">＋</button>
+        </div>
+        <div class="crop-actions">
+          <button class="ghost-btn" type="button" :disabled="cropping" @click="closeCrop">取消</button>
+          <button class="primary-btn" type="button" :disabled="cropping" @click="confirmCrop">
+            {{ cropping ? '处理中…' : '确定' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -346,5 +590,173 @@ async function handleSave(): Promise<void> {
 .ghost-btn:hover {
   border-color: var(--primary-light);
   color: var(--primary);
+}
+.avatar-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.self-avatar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 1px dashed var(--border);
+  background: var(--bg);
+  overflow: hidden;
+  cursor: pointer;
+}
+.self-avatar.uploading {
+  cursor: progress;
+}
+.self-avatar-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.self-avatar-placeholder {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.self-avatar-mask {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 12px;
+}
+.avatar-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.anon-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.anon-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: calc((100% - 20px) / 3);
+  padding: 8px 4px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s;
+}
+.anon-item.active {
+  border-color: var(--primary);
+  background: var(--success-bg);
+}
+.anon-img,
+.anon-emoji {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.anon-img {
+  object-fit: cover;
+}
+.anon-emoji {
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: 700;
+}
+.anon-name {
+  font-size: 11px;
+  color: var(--text);
+}
+
+/* 头像裁剪弹层 */
+.crop-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(15, 25, 22, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.crop-dialog {
+  background: var(--card);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+}
+.crop-title {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+.crop-frame {
+  position: relative;
+  width: 320px;
+  height: 320px;
+  overflow: hidden;
+  background: #0f1916;
+  border-radius: 8px;
+  touch-action: none;
+  cursor: grab;
+}
+.crop-frame:active {
+  cursor: grabbing;
+}
+.crop-img {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  user-select: none;
+  pointer-events: none;
+}
+.crop-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+}
+.crop-zoom {
+  display: flex;
+  gap: 12px;
+}
+.zoom-btn {
+  width: 40px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  background: var(--card);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text);
+}
+.zoom-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.crop-actions {
+  display: flex;
+  gap: 12px;
 }
 </style>

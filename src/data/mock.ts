@@ -117,7 +117,7 @@ export interface SignupStep {
   step: number
   title: string
   desc: string
-  iconType: 'megaphone' | 'user-plus' | 'bot'
+  iconType: 'megaphone' | 'user-plus' | 'engine'
 }
 
 export const SIGNUP_STEPS: SignupStep[] = [
@@ -135,9 +135,9 @@ export const SIGNUP_STEPS: SignupStep[] = [
   },
   {
     step: 3,
-    title: '机器人同步群接龙',
-    desc: '机器人自动把官网报名信息同步到微信群接龙，组织者零维护',
-    iconType: 'bot',
+    title: '一键自动编排',
+    desc: '报名满 4 人后按性别构成自动编排对阵与轮排，组织者零维护',
+    iconType: 'engine',
   },
 ]
 
