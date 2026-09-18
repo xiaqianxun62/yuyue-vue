@@ -35,6 +35,7 @@ function persist(next: AuthResult | null): void {
       gender: next.gender,
       college: next.college,
       studentNo: next.studentNo ?? null,
+      anonymousName: next.anonymousName ?? null,
       rating: next.rating,
       gamesPlayed: next.gamesPlayed,
     }
@@ -109,6 +110,14 @@ async function restore(): Promise<void> {
     persist(null)
   }
 }
+
+/**
+ * token 过期 / 被登出时由请求层广播：这里同步清掉登录态，页面会立刻回到未登录
+ */
+window.addEventListener('yuyue:unauthorized', () => {
+  restored.value = false
+  persist(null)
+})
 
 export function useAuth() {
   return {

@@ -11,6 +11,8 @@ export interface AuthResult {
   college: string | null
   /** 学号：校园认证后才有，未绑定时为 null */
   studentNo: string | null
+  /** 匿名昵称，如「球友#1111」 */
+  anonymousName: string | null
   rating: number
   gamesPlayed: number
 }
@@ -35,6 +37,8 @@ export interface ProfilePayload {
   gender?: number
   college?: string
   studentNo?: string
+  /** 匿名昵称，格式「球友#」+ 4 位数字 */
+  anonymousName?: string
 }
 
 export function login(payload: LoginPayload): Promise<AuthResult> {

@@ -70,9 +70,10 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 
   const payload = (await res.json()) as ApiResponse<T>
   if (payload.code !== 0) {
-    // token 失效：清掉本地凭证，避免后续请求继续 401
+    // token 失效：清掉本地凭证，并广播给登录状态，避免 UI 还显示已登录、后续请求继续 401
     if (payload.code === 401) {
       clearToken()
+      window.dispatchEvent(new CustomEvent('yuyue:unauthorized'))
     }
     throw new ApiError(payload.code, payload.message || '请求失败')
   }

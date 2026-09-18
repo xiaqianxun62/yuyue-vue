@@ -28,9 +28,16 @@ interface ProfileForm {
   gender: number
   college: string
   studentNo: string
+  anonymousName: string
 }
 
-const form = reactive<ProfileForm>({ name: '', gender: 0, college: COLLEGES[0], studentNo: '' })
+const form = reactive<ProfileForm>({
+  name: '',
+  gender: 0,
+  college: COLLEGES[0],
+  studentNo: '',
+  anonymousName: '',
+})
 const saving = ref(false)
 const error = ref('')
 const success = ref('')
@@ -41,6 +48,7 @@ function fill(): void {
   form.gender = user.value.gender ?? 0
   form.college = user.value.college || COLLEGES[0]
   form.studentNo = user.value.studentNo ?? ''
+  form.anonymousName = user.value.anonymousName ?? ''
 }
 
 onMounted(async () => {
@@ -60,6 +68,11 @@ async function handleSave(): Promise<void> {
     error.value = '请填写姓名'
     return
   }
+  const anonymousName = form.anonymousName.trim()
+  if (anonymousName && !/^球友#\d{4}$/.test(anonymousName)) {
+    error.value = '匿名名称格式为「球友#1111」：「球友#」+ 4 位数字'
+    return
+  }
   saving.value = true
   try {
     const updated: AuthResult = await authApi.updateProfile({
@@ -67,6 +80,7 @@ async function handleSave(): Promise<void> {
       gender: Number(form.gender),
       college: form.college,
       studentNo: form.studentNo.trim(),
+      anonymousName,
     })
     applyProfile(updated)
     success.value = '资料已保存'
@@ -138,6 +152,17 @@ async function handleSave(): Promise<void> {
                 placeholder="校园认证用，可留空"
               />
               <span class="hint">绑定学号后可用「学号 + 密码」登录；留空表示不修改</span>
+            </label>
+
+            <label class="field">
+              <span class="label">匿名名称</span>
+              <input
+                v-model="form.anonymousName"
+                class="input"
+                type="text"
+                placeholder="球友#1111"
+              />
+              <span class="hint">匿名报名时对外显示的名称；格式「球友#」+ 4 位数字，留空表示不修改</span>
             </label>
 
             <p v-if="error" class="msg error">{{ error }}</p>
