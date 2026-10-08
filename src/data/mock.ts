@@ -1,11 +1,10 @@
-import { randomInt, randomItem } from '../utils/random'
 import type { EloKRule, EloRuleScenario, EloRules } from '../api/elo'
 
 // ============ 功能卡片 ============
 export interface FeatureItem {
   title: string
   desc: string
-  iconType: 'court' | 'engine' | 'trophy' | 'chat'
+  iconType: 'court' | 'engine' | 'trophy' | 'person'
 }
 
 export const FEATURES: FeatureItem[] = [
@@ -25,9 +24,9 @@ export const FEATURES: FeatureItem[] = [
     iconType: 'trophy',
   },
   {
-    title: '实时头像墙与聊天室',
-    desc: '在线球友一目了然，临时聊天室随时约球，关闭即消不保留',
-    iconType: 'chat',
+    title: '实时头像墙',
+    desc: '球友头像一目了然，快速认识同场对手，来了就能对上号',
+    iconType: 'person',
   },
 ]
 
@@ -48,8 +47,8 @@ export const HOW_TO_STEPS: HowToStep[] = [
   },
   {
     step: 2,
-    title: '学号 + 姓名认证',
-    desc: '校园认证加入，保证球友身份真实可靠',
+    title: '账号 + 姓名注册',
+    desc: '账号实名注册，保证球友身份真实可靠',
     iconType: 'card',
   },
   {
@@ -206,72 +205,3 @@ export const FALLBACK_ELO_RULES: EloRules = {
 }
 
 // 积分榜数据来自后端 /ranking，头像墙数据来自后端 /games 的报名列表，均不再使用本地假数据
-
-// ============ 聊天室 ============
-export interface ChatMessage {
-  id: string
-  nickname: string
-  content: string
-  isSelf: boolean
-  colorIndex: number
-  failed?: boolean
-}
-
-export const INITIAL_MESSAGES: ChatMessage[] = [
-  {
-    id: 'init-1',
-    nickname: '系统消息',
-    content: '欢迎来到临时聊天室，消息仅本次会话展示，关闭后不保留。',
-    isSelf: false,
-    colorIndex: 1,
-  },
-  {
-    id: 'init-2',
-    nickname: '杀球王#233',
-    content: '今晚球馆有人来吗',
-    isSelf: false,
-    colorIndex: 2,
-  },
-  {
-    id: 'init-3',
-    nickname: '网前雨刮器#456',
-    content: '我 7 点到',
-    isSelf: false,
-    colorIndex: 4,
-  },
-]
-
-export const AUTO_REPLIES = [
-  '今晚球馆有人来吗',
-  '我 7 点到',
-  '有人双打吗',
-  '今天场地空吗',
-  '新人求带',
-  '有人一起练高远球吗',
-  '刚打完，累瘫了',
-  '明天约球呀',
-  '球馆几点关门',
-  '有没带拍的朋友吗',
-  '下次约混双',
-  '谁知道新球馆怎么去',
-]
-
-// 生成匿名昵称
-const NICK_PREFIXES = [
-  '杀球王',
-  '网前雨刮器',
-  '反手拧拉',
-  '高远球',
-  '劈吊小王子',
-  '步法飘逸',
-  '平抽挡',
-  '接发狂魔',
-  '后场重炮',
-  '鱼跃救球',
-]
-
-export function generateNickname(): string {
-  const prefix = randomItem(NICK_PREFIXES)
-  const num = randomInt(100, 999)
-  return `${prefix}#${num}`
-}

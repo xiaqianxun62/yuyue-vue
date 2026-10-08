@@ -57,6 +57,10 @@ function isFull(game: Game): boolean {
   return game.registeredCount >= game.maxPlayers
 }
 
+function goToDetail(game: Game): void {
+  window.location.hash = `#/game/${game.id}`
+}
+
 function statusText(game: Game): string {
   if (game.status !== 0) return STATUS_TEXT[game.status] ?? '已编排'
   return isFull(game) ? '已满员' : '报名中'
@@ -83,8 +87,8 @@ onMounted(load)
   <section id="signup" class="section">
     <div class="container">
       <div class="section-header">
-        <h2 class="section-title">匿名报名</h2>
-        <p class="section-desc">不在群里也能加入球局，匿名报名保护隐私</p>
+        <h2 class="section-title">报名</h2>
+        <p class="section-desc">不在群里也能加入球局，一键报名即可加入</p>
       </div>
       <div class="steps">
         <div v-for="item in SIGNUP_STEPS" :key="item.step" class="step">
@@ -96,15 +100,15 @@ onMounted(load)
           <p class="step-desc">{{ item.desc }}</p>
         </div>
       </div>
-      <div class="signup-flow" aria-label="匿名报名信息流向">
+      <div class="signup-flow" aria-label="报名流程">
         <span class="flow-node">选择球局</span>
         <span class="flow-arrow" aria-hidden="true"></span>
-        <span class="flow-node flow-node-bot">匿名 / 实名报名</span>
+        <span class="flow-node flow-node-bot">一键报名</span>
         <span class="flow-arrow" aria-hidden="true"></span>
         <span class="flow-node">查看对阵轮排</span>
       </div>
       <p class="signup-note">
-        群外球友无需入群、无需单独联络，官网一键报名即可加入，真实信息仅在轮排中对参与者可见
+        群外球友无需入群、无需单独联络，官网一键报名即可加入
       </p>
 
       <!-- 真实球局列表：来自后端 /games -->
@@ -127,7 +131,7 @@ onMounted(load)
 
         <template v-else>
           <ul class="game-list">
-            <li v-for="game in games" :key="game.id" class="game-card">
+            <li v-for="game in games" :key="game.id" class="game-card" @click="goToDetail(game)">
               <div class="game-main">
                 <div class="game-title">{{ game.title }}</div>
                 <div class="game-meta">
@@ -144,7 +148,7 @@ onMounted(load)
                   class="game-btn"
                   type="button"
                   :disabled="game.status !== 0 || isFull(game) || pendingId === game.id"
-                  @click="handleRegister(game)"
+                  @click.stop="handleRegister(game)"
                 >
                   {{ btnText(game) }}
                 </button>

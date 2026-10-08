@@ -10,21 +10,49 @@ import ArrangeSection from './components/ArrangeSection.vue'
 import RankingSection from './components/RankingSection.vue'
 import EloLabSection from './components/EloLabSection.vue'
 import AvatarWallSection from './components/AvatarWallSection.vue'
-import ChatRoomSection from './components/ChatRoomSection.vue'
 import CtaToast from './components/CtaToast.vue'
 import FooterSection from './components/FooterSection.vue'
 import AuthPage from './views/AuthPage.vue'
 import ProfilePage from './views/ProfilePage.vue'
+import SettingsPage from './views/SettingsPage.vue'
+import AdminUsersPage from './views/AdminUsersPage.vue'
+import CourtManagementPage from './views/CourtManagementPage.vue'
+import GameDetailPage from './views/GameDetailPage.vue'
 import { useAuth } from './composables/useAuth'
+import { isMobileDevice, mobileSiteUrl } from './utils/device'
 
 /**
  * 极简 hash 路由：官网用 #hero 等锚点做滚动，登录页用 #/login、#/register 区分。
  * 不引入 vue-router，保持零依赖。
  */
-type Route = 'home' | 'login' | 'register' | 'profile'
+type Route = 'home' | 'login' | 'register' | 'profile' | 'settings' | 'admin' | 'courts' | 'game'
 
 const showCtaToast = ref(false)
 const route = ref<Route>(currentRoute())
+const gameId = ref<number | null>(null)
+
+/** 手机浏览器访问 PC 官网：首页顶部提示「前往手机版」，仅提示不强制跳转，可关闭（本次访问不再出现） */
+const showMobileBanner = ref(false)
+const mobileUrl = mobileSiteUrl()
+
+function dismissMobileBanner(): void {
+  showMobileBanner.value = false
+  try {
+    sessionStorage.setItem('shuyu_mobile_banner_dismissed', '1')
+  } catch {
+    /* 隐私模式等场景忽略 */
+  }
+}
+
+onMounted(() => {
+  let dismissed = false
+  try {
+    dismissed = sessionStorage.getItem('shuyu_mobile_banner_dismissed') === '1'
+  } catch {
+    dismissed = false
+  }
+  showMobileBanner.value = isMobileDevice() && !dismissed
+})
 
 const { restore } = useAuth()
 
@@ -34,7 +62,15 @@ const authTab = computed<'login' | 'register'>(() =>
 
 function currentRoute(): Route {
   const hash = window.location.hash.replace(/^#\/?/, '')
-  return hash === 'login' || hash === 'register' || hash === 'profile' ? hash : 'home'
+  // 带 ID 的球局详情：#/game/123
+  const gameMatch = hash.match(/^game\/(\d+)$/)
+  if (gameMatch) {
+    gameId.value = Number(gameMatch[1])
+    return 'game'
+  }
+  gameId.value = null
+  if (hash === 'login' || hash === 'register' || hash === 'profile' || hash === 'settings' || hash === 'admin' || hash === 'courts') return hash as Route
+  return 'home'
 }
 
 function syncRoute(): void {
@@ -49,6 +85,21 @@ function handleCtaClick(): void {
 /** 用户菜单「编辑个人信息」 */
 function handleProfileClick(): void {
   window.location.hash = '#/profile'
+}
+
+/** 用户菜单「站点文案设置」 */
+function handleSettingsClick(): void {
+  window.location.hash = '#/settings'
+}
+
+/** 用户菜单「用户管理」（仅管理员） */
+function handleAdminClick(): void {
+  window.location.hash = '#/admin'
+}
+
+/** 用户菜单「球场管理」（仅管理员） */
+function handleCourtsClick(): void {
+  window.location.hash = '#/courts'
 }
 
 /** 从登录页返回官网（回到首页锚点，hash 变化会自动切回官网视图） */
@@ -83,7 +134,15 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="app">
-    <ProfilePage v-if="route === 'profile'" @back="handleBack" />
+    <GameDetailPage
+      v-if="route === 'game' && gameId"
+      :game-id="gameId"
+      @back="handleBack"
+    />
+    <ProfilePage v-else-if="route === 'profile'" @back="handleBack" />
+    <SettingsPage v-else-if="route === 'settings'" @back="handleBack" />
+    <AdminUsersPage v-else-if="route === 'admin'" @back="handleBack" />
+    <CourtManagementPage v-else-if="route === 'courts'" @back="handleBack" />
     <AuthPage
       v-else-if="route !== 'home'"
       :tab="authTab"
@@ -91,7 +150,20 @@ onBeforeUnmount(() => {
       @open-mini="handleOpenMini"
     />
     <template v-else>
-      <NavHeader @cta-click="handleCtaClick" @profile-click="handleProfileClick" />
+      <div v-if="showMobileBanner" class="mobile-banner">
+        <a class="mobile-banner-link" :href="mobileUrl">
+          检测到手机访问，点此前往手机版约球页面
+        </a>
+        <button
+          type="button"
+          class="mobile-banner-close"
+          aria-label="关闭提示"
+          @click="dismissMobileBanner"
+        >
+          ×
+        </button>
+      </div>
+      <NavHeader @cta-click="handleCtaClick" @profile-click="handleProfileClick" @settings-click="handleSettingsClick" @admin-click="handleAdminClick" @courts-click="handleCourtsClick" />
       <main>
         <HeroSection />
         <FeaturesSection />
@@ -102,10 +174,48 @@ onBeforeUnmount(() => {
         <RankingSection />
         <EloLabSection />
         <AvatarWallSection />
-        <ChatRoomSection />
       </main>
       <FooterSection />
     </template>
     <CtaToast :visible="showCtaToast" @close="closeCtaToast" />
   </div>
 </template>
+
+<style scoped>
+/* 手机访问 PC 官网时的顶部提示横幅：只提示、不强制跳转 */
+.mobile-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 40px 8px 16px;
+  background: #14665b;
+  color: #edf4ee;
+  font-size: 13px;
+  position: relative;
+}
+
+.mobile-banner-link {
+  color: #f0d878;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.mobile-banner-link:hover {
+  text-decoration: underline;
+}
+
+.mobile-banner-close {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  color: #edf4ee;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+</style>

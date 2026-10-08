@@ -45,7 +45,7 @@ async function handleLogout(): Promise<void> {
         <p class="promo-tag">校园羽毛球球局系统</p>
         <h1 class="promo-title">约球这件事，<br />一次报名就够了。</h1>
         <p class="promo-desc">
-          学号注册后即可发布球局、匿名报名、查看 ELO 积分榜。
+          注册账号后即可发布球局、匿名报名、查看 ELO 积分榜。
         </p>
         <ul class="promo-list">
           <li v-for="item in HIGHLIGHTS" :key="item.title">
@@ -62,7 +62,7 @@ async function handleLogout(): Promise<void> {
             <div class="profile-head">
               <div class="profile-avatar">{{ user.name.charAt(0) }}</div>
               <div class="profile-name">{{ user.name }}</div>
-              <div class="profile-meta">{{ user.college || '未填写学院' }}</div>
+              <div v-if="user.account" class="profile-meta">账号 {{ user.account }}</div>
             </div>
             <div class="profile-stats">
               <div class="stat">

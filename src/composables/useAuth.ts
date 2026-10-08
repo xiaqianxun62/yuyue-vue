@@ -33,14 +33,11 @@ function persist(next: AuthResult | null): void {
       userId: next.userId,
       name: next.name,
       gender: next.gender,
-      college: next.college,
-      studentNo: next.studentNo ?? null,
-      anonymousName: next.anonymousName ?? null,
+      account: next.account ?? null,
       avatar: next.avatar ?? null,
-      anonymousAvatarId: next.anonymousAvatarId ?? null,
-      anonymousAvatar: next.anonymousAvatar ?? null,
       rating: next.rating,
       gamesPlayed: next.gamesPlayed,
+      isAdmin: next.isAdmin ?? false,
     }
     localStorage.setItem(USER_KEY, JSON.stringify(profile))
   } else {
@@ -126,6 +123,7 @@ export function useAuth() {
   return {
     user,
     isLoggedIn: computed(() => user.value !== null),
+    isAdmin: computed(() => (user.value?.isAdmin ?? false) === true),
     submitting,
     restored,
     login,

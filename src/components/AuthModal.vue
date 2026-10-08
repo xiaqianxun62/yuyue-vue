@@ -56,7 +56,7 @@ onBeforeUnmount(() => {
           <div class="profile-head">
             <div class="profile-avatar">{{ user.name.charAt(0) }}</div>
             <div class="profile-name">{{ user.name }}</div>
-            <div class="profile-meta">{{ user.college || '未填写学院' }}</div>
+            <div v-if="user.account" class="profile-meta">账号 {{ user.account }}</div>
           </div>
           <div class="profile-stats">
             <div class="stat">

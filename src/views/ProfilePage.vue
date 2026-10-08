@@ -2,7 +2,7 @@
 import { onMounted, reactive, ref, watch } from 'vue'
 import SvgIcon from '../components/SvgIcon.vue'
 import * as authApi from '../api/auth'
-import type { AuthResult, AvatarView } from '../api/auth'
+import type { AuthResult } from '../api/auth'
 import { resolveAvatarUrl } from '../api/auth'
 import { useAuth } from '../composables/useAuth'
 
@@ -13,65 +13,40 @@ const emit = defineEmits<{
 
 const { user, isLoggedIn, applyProfile, restore } = useAuth()
 
-const COLLEGES = [
-  '计算机学院',
-  '体育学院',
-  '电子信息学院',
-  '机械学院',
-  '经济管理学院',
-  '外国语学院',
-  '艺术学院',
-  '其他',
-]
-
 interface ProfileForm {
   name: string
   gender: number
-  college: string
-  studentNo: string
+  account: string
   avatar: string
-  anonymousAvatarId: number | null
 }
 
 const form = reactive<ProfileForm>({
   name: '',
   gender: 0,
-  college: COLLEGES[0],
-  studentNo: '',
+  account: '',
   avatar: '',
-  anonymousAvatarId: null,
 })
 const saving = ref(false)
 const uploadingAvatar = ref(false)
 const error = ref('')
 const success = ref('')
-/** 系统预置匿名头像列表 */
-const anonymousAvatars = ref<AvatarView[]>([])
 
 function fill(): void {
   if (!user.value) return
   form.name = user.value.name ?? ''
   form.gender = user.value.gender ?? 0
-  form.college = user.value.college || COLLEGES[0]
-  form.studentNo = user.value.studentNo ?? ''
+  form.account = user.value.account ?? ''
   form.avatar = user.value.avatar ?? ''
-  form.anonymousAvatarId = user.value.anonymousAvatarId ?? null
 }
 
-async function loadAnonymousAvatars(): Promise<void> {
-  try {
-    const list = await authApi.listAnonymousAvatars()
-    anonymousAvatars.value = list
-    // 没选过时默认选第一个
-    if (form.anonymousAvatarId === null && list.length > 0) {
-      form.anonymousAvatarId = list[0].id
-    }
-  } catch {
-    anonymousAvatars.value = []
-  }
+/** 判断是否为 GIF 文件：跳过裁剪直接上传，保持动画 */
+function isGifFile(file: File): boolean {
+  if (file.type === 'image/gif') return true
+  const name = file.name.toLowerCase()
+  return name.endsWith('.gif')
 }
 
-/** 选择图片后先打开裁剪弹层，确认裁剪后再上传 */
+/** 选择图片后先打开裁剪弹层；GIF 文件跳过裁剪直传保持动画 */
 async function onPickFile(event: Event): Promise<void> {
   const target = event.target as HTMLInputElement
   const file = target.files && target.files[0]
@@ -82,6 +57,23 @@ async function onPickFile(event: Event): Promise<void> {
     error.value = '请选择图片文件'
     return
   }
+
+  // GIF 文件跳过裁剪，直接上传原图以保持动画
+  if (isGifFile(file)) {
+    error.value = ''
+    try {
+      uploadingAvatar.value = true
+      const url = await authApi.uploadAvatar(file)
+      form.avatar = url
+      success.value = 'GIF 头像已上传，记得点保存'
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'GIF 头像上传失败'
+    } finally {
+      uploadingAvatar.value = false
+    }
+    return
+  }
+
   error.value = ''
   if (cropObjectUrl) URL.revokeObjectURL(cropObjectUrl)
   cropObjectUrl = URL.createObjectURL(file)
@@ -207,16 +199,11 @@ async function confirmCrop(): Promise<void> {
   }
 }
 
-function pickAnonymousAvatar(item: AvatarView): void {
-  form.anonymousAvatarId = item.id
-}
-
 onMounted(async () => {
   if (!user.value) {
     await restore()
   }
   fill()
-  await loadAnonymousAvatars()
 })
 
 watch(user, fill)
@@ -234,10 +221,8 @@ async function handleSave(): Promise<void> {
     const updated: AuthResult = await authApi.updateProfile({
       name,
       gender: Number(form.gender),
-      college: form.college,
-      studentNo: form.studentNo.trim(),
+      account: form.account.trim(),
       avatar: form.avatar,
-      anonymousAvatarId: form.anonymousAvatarId ?? undefined,
     })
     applyProfile(updated)
     success.value = '资料已保存'
@@ -294,21 +279,14 @@ async function handleSave(): Promise<void> {
             </div>
 
             <label class="field">
-              <span class="label">学院</span>
-              <select v-model="form.college" class="input">
-                <option v-for="c in COLLEGES" :key="c" :value="c">{{ c }}</option>
-              </select>
-            </label>
-
-            <label class="field">
-              <span class="label">学号</span>
+              <span class="label">账号</span>
               <input
-                v-model="form.studentNo"
+                v-model="form.account"
                 class="input"
                 type="text"
-                placeholder="校园认证用，可留空"
+                placeholder="登录用，可留空"
               />
-              <span class="hint">绑定学号后可用「学号 + 密码」登录；留空表示不修改</span>
+              <span class="hint">绑定账号后可用「账号 + 密码」登录；留空表示不修改</span>
             </label>
 
             <div class="field">
@@ -332,39 +310,6 @@ async function handleSave(): Promise<void> {
                 </label>
                 <span class="hint">轮排表展示真实身份用；支持 jpg / png / webp / gif，≤ 5MB</span>
               </div>
-            </div>
-
-            <div class="field">
-              <span class="label">匿名名称</span>
-              <span class="hint">{{ user?.anonymousName || '系统分配中' }} · 由系统分配，不可修改</span>
-            </div>
-
-            <div class="field">
-              <span class="label">羽球形象（匿名头像）</span>
-              <div class="anon-grid">
-                <button
-                  v-for="(item, idx) in anonymousAvatars"
-                  :key="item.id ?? idx"
-                  type="button"
-                  class="anon-item"
-                  :class="{ active: form.anonymousAvatarId === item.id }"
-                  @click="pickAnonymousAvatar(item)"
-                >
-                  <img
-                    v-if="item.imageUrl"
-                    class="anon-img"
-                    :src="resolveAvatarUrl(item.imageUrl ?? '')"
-                    alt=""
-                  />
-                  <span
-                    v-else
-                    class="anon-emoji"
-                    :style="{ background: item.bgColor || '#14665b' }"
-                  >{{ item.emoji || '球' }}</span>
-                  <span class="anon-name">{{ item.name }}</span>
-                </button>
-              </div>
-              <span class="hint">报名名单用匿名头像；轮排表用个人头像</span>
             </div>
 
             <p v-if="error" class="msg error">{{ error }}</p>
@@ -637,50 +582,6 @@ async function handleSave(): Promise<void> {
   inset: 0;
   opacity: 0;
   cursor: pointer;
-}
-.anon-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-.anon-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  width: calc((100% - 20px) / 3);
-  padding: 8px 4px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--card);
-  cursor: pointer;
-  font-family: inherit;
-  transition: all 0.2s;
-}
-.anon-item.active {
-  border-color: var(--primary);
-  background: var(--success-bg);
-}
-.anon-img,
-.anon-emoji {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.anon-img {
-  object-fit: cover;
-}
-.anon-emoji {
-  color: #ffffff;
-  font-size: 20px;
-  font-weight: 700;
-}
-.anon-name {
-  font-size: 11px;
-  color: var(--text);
 }
 
 /* 头像裁剪弹层 */

@@ -7,7 +7,6 @@ interface Props {
     | 'court'
     | 'engine'
     | 'trophy'
-    | 'chat'
     | 'phone'
     | 'card'
     | 'racket'
@@ -26,6 +25,8 @@ interface Props {
     | 'chevron'
     | 'logout'
     | 'person'
+    | 'users'
+    | 'location'
   size?: number | string
 }
 
@@ -53,11 +54,6 @@ const iconPaths: Record<Props['type'], string> = {
            <path d="M18 6h2a2 2 0 0 1 0 4h-2"/>
            <path d="M9 15h6v2H9z"/>
            <path d="M10 17v3h4v-3"/>`,
-  // 聊天
-  chat: `<path d="M4 5h16v10H8l-4 4V5z"/>
-         <circle cx="8" cy="10" r="1" fill="currentColor"/>
-         <circle cx="12" cy="10" r="1" fill="currentColor"/>
-         <circle cx="16" cy="10" r="1" fill="currentColor"/>`,
   // 手机
   phone: `<rect x="6" y="2" width="12" height="20" rx="2"/>
           <line x1="10" y1="18" x2="14" y2="18"/>`,
@@ -131,6 +127,14 @@ const iconPaths: Record<Props['type'], string> = {
   // 个人资料 / 编辑
   person: `<circle cx="12" cy="8" r="4"/>
            <path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/>`,
+  // 用户管理（多人）
+  users: `<circle cx="9" cy="9" r="3.5"/>
+          <circle cx="17" cy="10" r="3"/>
+          <path d="M2 20c0-3.5 3-5.5 7-5.5s7 2 7 5.5"/>
+          <path d="M15 20c0-2.5 1.8-4 4-4s4 1.5 4 4"/>`,
+  // 场地位置图钉
+  location: `<path d="M12 2a7 7 0 0 1 7 7c0 5-7 13-7 13S5 14 5 9a7 7 0 0 1 7-7z"/>
+             <circle cx="12" cy="9" r="2.5"/>`,
 }
 
 const viewBox = computed(() => {

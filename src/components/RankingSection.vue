@@ -4,7 +4,19 @@ import SvgIcon from './SvgIcon.vue'
 import { FALLBACK_ELO_RULES } from '../data/mock'
 import { fetchRanking, type RankingItem } from '../api/ranking'
 import { fetchEloRules, type EloRules } from '../api/elo'
+import { resolveUrl } from '../api/http'
 import { ApiError } from '../api/http'
+
+/** 头像首字母占位的背景色池，与小程序端保持一致 */
+const AVATAR_COLORS = ['#14665b', '#c0392b', '#8e44ad', '#2980b9', '#16a085', '#e67e22', '#27ae60', '#d35400', '#2c3e50', '#b33a2e']
+
+function avatarBgColor(userId: number): string {
+  return AVATAR_COLORS[(userId || 0) % AVATAR_COLORS.length]
+}
+
+function firstLetter(name: string): string {
+  return (name || '球友').charAt(0)
+}
 
 /** 一次取回的条目数，前端再切 Top 10 / 全部 */
 const RANK_FETCH_SIZE = 50
@@ -105,7 +117,6 @@ onMounted(() => {
             <tr>
               <th class="col-rank" scope="col">排名</th>
               <th scope="col">球友</th>
-              <th scope="col">学院</th>
               <th class="col-rating" scope="col">积分</th>
               <th class="col-record" scope="col">胜 / 负</th>
             </tr>
@@ -116,8 +127,20 @@ onMounted(() => {
                 <span v-if="i < 3" :class="`rank-medal rank-${i + 1}`">{{ i + 1 }}</span>
                 <span v-else class="rank-num">{{ i + 1 }}</span>
               </td>
-              <td class="col-name">{{ p.anonymousName }}</td>
-              <td class="col-dept">{{ p.college || '未填写' }}</td>
+              <td class="col-name">
+                <span class="rank-avatar">
+                  <img
+                    v-if="p.avatar"
+                    :src="resolveUrl(p.avatar)"
+                    :alt="p.name"
+                    class="rank-avatar-img"
+                  />
+                  <span v-else class="rank-avatar-placeholder" :style="{ background: avatarBgColor(p.userId) }">
+                    {{ firstLetter(p.name) }}
+                  </span>
+                </span>
+                <span class="rank-name">{{ p.name }}</span>
+              </td>
               <td class="col-rating"><strong>{{ p.rating }}</strong></td>
               <td class="col-record">
                 <span class="rec-win">{{ p.win }}</span> /
@@ -168,7 +191,7 @@ onMounted(() => {
         <p v-if="rules.formula" class="elo-formula">{{ rules.formula }}</p>
 
         <h3 class="elo-subtitle">
-          对局场景（K={{ rules.kRules[0]?.k ?? '-' }}，{{ rules.kRules[0]?.games ?? '-' }}）
+          对局场景（K={{ rules.kRules?.[0]?.k ?? '-' }}，{{ rules.kRules?.[0]?.games ?? '-' }}）
         </h3>
         <div class="elo-scenario-list">
           <div v-for="s in rules.scenarios" :key="s.scene" class="elo-scenario-card">

@@ -55,7 +55,7 @@ function scrollTo(id: string) {
             都能打上<span style="color: var(--accent)">势均力敌</span>的球局
           </h1>
           <p class="hero-subtitle">
-            约球 · ELO 积分 · 自动轮转引擎 · 匿名接龙 · 到场即开打
+            约球 · ELO 积分 · 自动轮转引擎 · 到场即开打
           </p>
           <div class="hero-buttons">
             <button class="btn-primary" type="button" @click="scrollTo('features')">

@@ -10,7 +10,7 @@ export interface ApiResponse<T> {
   data: T
 }
 
-/** 业务异常：带后端错误码，便于上层区分「学号已注册」「密码错误」等场景 */
+/** 业务异常：带后端错误码，便于上层区分「账号已注册」「密码错误」等场景 */
 export class ApiError extends Error {
   readonly code: number
 
@@ -21,9 +21,8 @@ export class ApiError extends Error {
   }
 }
 
-/** 后端地址：可在 .env.local 里用 VITE_API_BASE_URL 覆盖 */
-const BASE_URL: string =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:8080'
+/** 后端地址：所有接口统一挂在 /api 下。开发期由 vite proxy 转发到 8080，生产由 nginx 反代。 */
+const BASE_URL: string = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '/api'
 
 const TOKEN_KEY = 'yuyue_token'
 
@@ -39,7 +38,7 @@ export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY)
 }
 
-/** 后端相对路径补全为完整 URL（如 /uploads/xxx → http://localhost:8080/uploads/xxx） */
+/** 后端相对路径补全为完整 URL（如 /uploads/xxx → http://localhost:8080/api/uploads/xxx） */
 export function resolveUrl(url: string | null | undefined): string {
   if (!url) return ''
   if (/^https?:\/\//.test(url)) return url
@@ -69,7 +68,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   try {
     res = await fetch(BASE_URL + path, init)
   } catch {
-    throw new ApiError(-1, `无法连接服务器，请确认后端已启动（${BASE_URL}）`)
+    throw new ApiError(-1, `无法连接服务器，请确认后端已启动`)
   }
 
   if (!res.ok) {
@@ -108,7 +107,7 @@ export async function uploadFile<T>(path: string, file: File, field = 'file'): P
   try {
     res = await fetch(BASE_URL + path, { method: 'POST', headers, body: form })
   } catch {
-    throw new ApiError(-1, `无法连接服务器，请确认后端已启动（${BASE_URL}）`)
+    throw new ApiError(-1, `无法连接服务器，请确认后端已启动`)
   }
 
   if (!res.ok) {

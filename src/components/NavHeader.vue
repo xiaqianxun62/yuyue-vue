@@ -7,9 +7,15 @@ const emit = defineEmits<{
   ctaClick: []
   /** 用户菜单「编辑个人信息」 */
   profileClick: []
+  /** 用户菜单「站点文案设置」 */
+  settingsClick: []
+  /** 用户菜单「用户管理」（仅管理员） */
+  adminClick: []
+  /** 用户菜单「球场场地管理」（仅管理员） */
+  courtsClick: []
 }>()
 
-const { isLoggedIn, user, logout } = useAuth()
+const { isLoggedIn, isAdmin, user, logout } = useAuth()
 
 interface MenuItem {
   id: string
@@ -24,12 +30,11 @@ const MENU: MenuItem[] = [
   { id: 'features', label: '核心功能', primary: false },
   { id: 'howto', label: '如何加入', primary: false },
   { id: 'platforms', label: '多端平台', primary: false },
-  { id: 'signup', label: '匿名报名', primary: false },
+  { id: 'signup', label: '报名', primary: false },
   { id: 'arrange', label: '自动编排', primary: true },
   { id: 'ranking', label: '积分榜', primary: true },
   { id: 'elo-lab', label: 'ELO 试算', primary: false },
   { id: 'avatar-wall', label: '在线头像墙', primary: false },
-  { id: 'chatroom', label: '临时聊天室', primary: true },
 ]
 
 /** 桌面端断点：≥1024px 平铺主导航 + 下拉，以下走抽屉 */
@@ -39,10 +44,18 @@ const primaryItems = computed(() => MENU.filter((i) => i.primary))
 const moreItems = computed(() => MENU.filter((i) => !i.primary))
 
 const headerRef = ref<HTMLElement | null>(null)
+const moreBtnRef = ref<HTMLButtonElement | null>(null)
+const userBtnRef = ref<HTMLButtonElement | null>(null)
+const moreMenuRef = ref<HTMLElement | null>(null)
+const userMenuRef = ref<HTMLElement | null>(null)
+const drawerRef = ref<HTMLElement | null>(null)
 const activeId = ref<string>('hero')
 const moreOpen = ref(false)
 const userOpen = ref(false)
 const drawerOpen = ref(false)
+/** 桌面下拉 Teleport 到 body 后，按触发按钮的视口坐标摆放 */
+const morePos = ref<{ top: number; left: number } | null>(null)
+const userPos = ref<{ top: number; left: number } | null>(null)
 // 首帧就按真实视口渲染，避免桌面端闪一下汉堡按钮
 const isDesktop = ref(
   typeof window !== 'undefined' ? window.matchMedia(DESKTOP_QUERY).matches : false,
@@ -83,14 +96,29 @@ function closeAll(): void {
   drawerOpen.value = false
 }
 
+/** 以触发按钮为锚点计算 fixed 浮层位置，右对齐按钮并夹在视口内 */
+function anchorPos(btn: HTMLElement, width: number): { top: number; left: number } {
+  const rect = btn.getBoundingClientRect()
+  return {
+    top: rect.bottom + 8,
+    left: Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8)),
+  }
+}
+
 function toggleMore(): void {
   userOpen.value = false
   moreOpen.value = !moreOpen.value
+  if (moreOpen.value && moreBtnRef.value) {
+    morePos.value = anchorPos(moreBtnRef.value, 168)
+  }
 }
 
 function toggleUser(): void {
   moreOpen.value = false
   userOpen.value = !userOpen.value
+  if (userOpen.value && userBtnRef.value) {
+    userPos.value = anchorPos(userBtnRef.value, 208)
+  }
 }
 
 function toggleDrawer(): void {
@@ -113,9 +141,22 @@ function openProfile(): void {
   emit('profileClick')
 }
 
-/** 点击浮层外部 / 按 ESC 关闭 */
+function openSettings(): void {
+  closeAll()
+  emit('settingsClick')
+}
+
+/** 点击浮层外部 / 按 ESC 关闭。浮层已 Teleport 到 body，需逐一放行内部点击 */
 function onDocumentClick(e: MouseEvent): void {
-  if (headerRef.value?.contains(e.target as Node)) return
+  const t = e.target as Node
+  if (
+    headerRef.value?.contains(t) ||
+    moreMenuRef.value?.contains(t) ||
+    userMenuRef.value?.contains(t) ||
+    drawerRef.value?.contains(t)
+  ) {
+    return
+  }
   closeAll()
 }
 
@@ -140,6 +181,8 @@ onMounted(() => {
   isDesktop.value = mql.matches
   mql.addEventListener('change', onViewportChange)
   window.addEventListener('scroll', updateActive, { passive: true })
+  // 浮层为 fixed 定位，窗口尺寸变化后锚点坐标会失真，直接收起
+  window.addEventListener('resize', closeAll)
   document.addEventListener('click', onDocumentClick)
   document.addEventListener('keydown', onKeydown)
   updateActive()
@@ -148,6 +191,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   mql?.removeEventListener('change', onViewportChange)
   window.removeEventListener('scroll', updateActive)
+  window.removeEventListener('resize', closeAll)
   document.removeEventListener('click', onDocumentClick)
   document.removeEventListener('keydown', onKeydown)
   document.body.style.overflow = ''
@@ -177,6 +221,7 @@ onBeforeUnmount(() => {
 
         <div class="menu-wrap">
           <button
+            ref="moreBtnRef"
             type="button"
             class="nav-link nav-more"
             :class="{ active: moreActive || moreOpen }"
@@ -187,20 +232,69 @@ onBeforeUnmount(() => {
             更多
             <SvgIcon type="chevron" :size="14" class="nav-more-icon" :class="{ up: moreOpen }" />
           </button>
-          <div v-show="moreOpen" id="nav-more-menu" class="dropdown">
-            <a
-              v-for="item in moreItems"
-              :key="item.id"
-              :href="'#' + item.id"
-              class="dropdown-item"
-              :class="{ active: activeId === item.id }"
-              @click.prevent="go(item.id)"
-            >
-              {{ item.label }}
-            </a>
-          </div>
         </div>
       </nav>
+
+      <!-- 下拉浮层 Teleport 到 body：header 的 backdrop-filter 会成为 fixed 后代的
+           包含块并裁剪浮层，挂到 body 后按按钮视口坐标定位，不受任何祖先容器影响 -->
+      <Teleport to="body">
+        <div
+          v-show="moreOpen"
+          ref="moreMenuRef"
+          id="nav-more-menu"
+          class="dropdown"
+          :style="morePos ? { top: morePos.top + 'px', left: morePos.left + 'px' } : undefined"
+        >
+          <a
+            v-for="item in moreItems"
+            :key="item.id"
+            :href="'#' + item.id"
+            class="dropdown-item"
+            :class="{ active: activeId === item.id }"
+            @click.prevent="go(item.id)"
+          >
+            {{ item.label }}
+          </a>
+        </div>
+      </Teleport>
+      <Teleport to="body">
+        <div
+          v-show="userOpen"
+          ref="userMenuRef"
+          id="nav-user-menu"
+          class="dropdown dropdown-user"
+          :style="userPos ? { top: userPos.top + 'px', left: userPos.left + 'px' } : undefined"
+        >
+          <div class="user-meta">
+            <div class="user-meta-name">{{ user?.name }}</div>
+            <div v-if="user?.account" class="user-meta-sub">账号 {{ user.account }}</div>
+            <div class="user-meta-stats">
+              <span>ELO <strong>{{ user?.rating ?? 1200 }}</strong></span>
+              <span>场次 <strong>{{ user?.gamesPlayed ?? 0 }}</strong></span>
+            </div>
+          </div>
+          <button type="button" class="dropdown-item" @click="openProfile">
+            <SvgIcon type="person" :size="15" />
+            编辑个人信息
+          </button>
+          <button v-if="isAdmin" type="button" class="dropdown-item" @click="openSettings">
+            <SvgIcon type="engine" :size="15" />
+            站点文案
+          </button>
+          <button v-if="isAdmin" type="button" class="dropdown-item" @click="emit('adminClick')">
+            <SvgIcon type="users" :size="15" />
+            用户管理
+          </button>
+          <button v-if="isAdmin" type="button" class="dropdown-item" @click="emit('courtsClick')">
+            <SvgIcon type="location" :size="15" />
+            球场管理
+          </button>
+          <button type="button" class="dropdown-item danger" @click="handleLogout">
+            <SvgIcon type="logout" :size="15" />
+            退出登录
+          </button>
+        </div>
+      </Teleport>
 
       <div class="header-right">
         <a v-if="!isLoggedIn" href="#hero" class="cta-btn" @click="handleCta">
@@ -209,6 +303,7 @@ onBeforeUnmount(() => {
 
         <div v-else class="menu-wrap">
           <button
+            ref="userBtnRef"
             type="button"
             class="user-chip"
             :aria-expanded="userOpen"
@@ -219,24 +314,6 @@ onBeforeUnmount(() => {
             <span class="user-chip-name">{{ user?.name }}</span>
             <SvgIcon type="chevron" :size="14" class="user-chip-icon" :class="{ up: userOpen }" />
           </button>
-          <div v-show="userOpen" id="nav-user-menu" class="dropdown dropdown-user">
-            <div class="user-meta">
-              <div class="user-meta-name">{{ user?.name }}</div>
-              <div class="user-meta-sub">{{ user?.college || '未填写学院' }}</div>
-              <div class="user-meta-stats">
-                <span>ELO <strong>{{ user?.rating ?? 1200 }}</strong></span>
-                <span>场次 <strong>{{ user?.gamesPlayed ?? 0 }}</strong></span>
-              </div>
-            </div>
-            <button type="button" class="dropdown-item" @click="openProfile">
-              <SvgIcon type="person" :size="15" />
-              编辑个人信息
-            </button>
-            <button type="button" class="dropdown-item danger" @click="handleLogout">
-              <SvgIcon type="logout" :size="15" />
-              退出登录
-            </button>
-          </div>
         </div>
 
         <button
@@ -254,9 +331,17 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <!-- 移动端抽屉 -->
-    <div v-show="drawerOpen" class="drawer-mask" @click="closeAll"></div>
-    <aside v-show="drawerOpen" id="nav-drawer" class="drawer" :class="{ open: drawerOpen }">
+    <!-- 移动端抽屉：Teleport 到 body，避免被 header 的 backdrop-filter
+         建立的包含块压缩（fixed 定位会以 56px 高的 header 为参照而塌陷） -->
+    <Teleport to="body">
+      <div v-show="drawerOpen" class="drawer-mask" @click="closeAll"></div>
+      <aside
+        v-show="drawerOpen"
+        ref="drawerRef"
+        id="nav-drawer"
+        class="drawer"
+        :class="{ open: drawerOpen }"
+      >
       <div class="drawer-head">
         <span class="drawer-title">全部功能</span>
         <span class="drawer-current">当前：{{ activeLabel }}</span>
@@ -286,6 +371,18 @@ onBeforeUnmount(() => {
             <SvgIcon type="person" :size="16" />
             编辑个人信息
           </button>
+          <button v-if="isAdmin" type="button" class="drawer-profile" @click="openSettings">
+            <SvgIcon type="engine" :size="16" />
+            站点文案
+          </button>
+          <button v-if="isAdmin" type="button" class="drawer-profile" @click="emit('adminClick')">
+            <SvgIcon type="users" :size="16" />
+            用户管理
+          </button>
+          <button v-if="isAdmin" type="button" class="drawer-profile" @click="emit('courtsClick')">
+            <SvgIcon type="location" :size="16" />
+            球场管理
+          </button>
           <button type="button" class="drawer-logout" @click="handleLogout">
             <SvgIcon type="logout" :size="16" />
             退出登录
@@ -293,7 +390,8 @@ onBeforeUnmount(() => {
         </template>
         <button v-else type="button" class="drawer-login" @click="handleCta">登录 / 注册</button>
       </div>
-    </aside>
+      </aside>
+    </Teleport>
   </header>
 </template>
 
@@ -373,18 +471,17 @@ onBeforeUnmount(() => {
   transform: rotate(180deg);
 }
 
-/* 下拉浮层 */
+/* 下拉浮层：fixed 定位（已 Teleport 到 body），top/left 由 JS 按按钮位置注入 */
 .dropdown {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
+  position: fixed;
   min-width: 168px;
+  max-width: calc(100vw - 16px);
   padding: 6px;
   border: 1px solid var(--border-light);
   border-radius: 12px;
   background: var(--card);
   box-shadow: var(--shadow-md);
-  z-index: 120;
+  z-index: 300;
 }
 .dropdown-item {
   display: flex;

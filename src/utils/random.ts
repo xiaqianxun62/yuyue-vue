@@ -11,27 +11,6 @@ export function uid(): string {
   return Math.random().toString(36).slice(2, 10)
 }
 
-// 学院列表
-export const DEPARTMENTS = [
-  '计算机学院',
-  '体育学院',
-  '电子工程学院',
-  '机械工程学院',
-  '生命学院',
-  '经管学院',
-  '数学学院',
-  '物理学院',
-  '外国语学院',
-  '建筑学院',
-  '新闻学院',
-  '材料学院',
-  '法学院',
-  '化学学院',
-  '人文学院',
-] as const
-
-export type Department = (typeof DEPARTMENTS)[number]
-
 // 头像色板
 export const AVATAR_COLORS = [
   '#14665B',

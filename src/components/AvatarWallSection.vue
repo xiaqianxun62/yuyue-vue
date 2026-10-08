@@ -34,11 +34,11 @@ async function load(): Promise<void> {
       for (const r of g.registrations ?? []) {
         byUser.set(r.userId, {
           userId: r.userId,
-          name: r.anonymousName,
+          name: r.displayName || '球友' + r.userId,
           rating: r.rating,
           gameTitle: g.title,
         })
-        timeline.push({ name: r.anonymousName, title: g.title })
+        timeline.push({ name: r.displayName || '球友' + r.userId, title: g.title })
       }
     }
     users.value = [...byUser.values()]
