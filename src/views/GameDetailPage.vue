@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { cancelRegisterGame, getGame, registerGame, type Game } from '../api/game'
 import { useAuth } from '../composables/useAuth'
 import TiandituMap from '../components/TiandituMap.vue'
+import SmartImage from '../components/SmartImage.vue'
 
 const props = defineProps<{ gameId: number }>()
 const emit = defineEmits<{ back: [] }>()
@@ -202,7 +203,7 @@ function openMini(): void {
             class="avatar"
             :style="{ background: colorOf(game.creatorId) }"
           >
-            <img v-if="game.creatorAvatar" :src="game.creatorAvatar" alt="" />
+            <SmartImage v-if="game.creatorAvatar" :src="game.creatorAvatar" alt="" />
             <span v-else>{{ initialOf(game.creatorName) }}</span>
           </div>
           <div class="creator-info">
@@ -253,7 +254,7 @@ function openMini(): void {
             :class="{ me: user?.userId === r.userId }"
           >
             <div class="avatar" :style="{ background: colorOf(r.userId) }">
-              <img v-if="r.avatar" :src="r.avatar" alt="" />
+              <SmartImage v-if="r.avatar" :src="r.avatar" alt="" />
               <span v-else>{{ initialOf(r.displayName || '') }}</span>
             </div>
             <div class="roster-info">

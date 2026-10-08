@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import SvgIcon from './SvgIcon.vue'
+import SmartImage from './SmartImage.vue'
 import { FALLBACK_ELO_RULES } from '../data/mock'
 import { fetchRanking, type RankingItem } from '../api/ranking'
 import { fetchEloRules, type EloRules } from '../api/elo'
-import { resolveUrl } from '../api/http'
 import { ApiError } from '../api/http'
 
 /** 头像首字母占位的背景色池，与小程序端保持一致 */
@@ -129,9 +129,9 @@ onMounted(() => {
               </td>
               <td class="col-name">
                 <span class="rank-avatar">
-                  <img
+                  <SmartImage
                     v-if="p.avatar"
-                    :src="resolveUrl(p.avatar)"
+                    :src="p.avatar"
                     :alt="p.name"
                     class="rank-avatar-img"
                   />

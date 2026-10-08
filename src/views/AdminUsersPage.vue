@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useAuth } from '../composables/useAuth'
 import * as usersApi from '../api/users'
+import SmartImage from '../components/SmartImage.vue'
 
 const emit = defineEmits<{ back: [] }>()
 
@@ -83,7 +84,7 @@ onMounted(load)
           <tr v-for="u in list" :key="u.id">
             <td class="user-cell">
               <div class="avatar" :style="{ background: colorFor(u.id) }">
-                <img v-if="u.avatar" :src="u.avatar" class="avatar-img" />
+                <SmartImage v-if="u.avatar" :src="u.avatar" class="avatar-img" />
                 <span v-else>{{ initial(u.name) }}</span>
               </div>
               <div class="user-info">
