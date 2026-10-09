@@ -17,6 +17,7 @@ import ProfilePage from './views/ProfilePage.vue'
 import SettingsPage from './views/SettingsPage.vue'
 import AdminUsersPage from './views/AdminUsersPage.vue'
 import CourtManagementPage from './views/CourtManagementPage.vue'
+import QuestionManagementPage from './views/QuestionManagementPage.vue'
 import GameDetailPage from './views/GameDetailPage.vue'
 import { useAuth } from './composables/useAuth'
 import { isMobileDevice, mobileSiteUrl } from './utils/device'
@@ -25,11 +26,12 @@ import { isMobileDevice, mobileSiteUrl } from './utils/device'
  * 极简 hash 路由：官网用 #hero 等锚点做滚动，登录页用 #/login、#/register 区分。
  * 不引入 vue-router，保持零依赖。
  */
-type Route = 'home' | 'login' | 'register' | 'profile' | 'settings' | 'admin' | 'courts' | 'game'
+type Route = 'home' | 'login' | 'register' | 'profile' | 'settings' | 'admin' | 'courts' | 'questions' | 'game'
 
 const showCtaToast = ref(false)
-const route = ref<Route>(currentRoute())
 const gameId = ref<number | null>(null)
+// gameId 必须在 currentRoute() 之前声明，因为 currentRoute 内部要写 gameId.value
+const route = ref<Route>(currentRoute())
 
 /** 手机浏览器访问 PC 官网：首页顶部提示「前往手机版」，仅提示不强制跳转，可关闭（本次访问不再出现） */
 const showMobileBanner = ref(false)
@@ -69,7 +71,7 @@ function currentRoute(): Route {
     return 'game'
   }
   gameId.value = null
-  if (hash === 'login' || hash === 'register' || hash === 'profile' || hash === 'settings' || hash === 'admin' || hash === 'courts') return hash as Route
+  if (hash === 'login' || hash === 'register' || hash === 'profile' || hash === 'settings' || hash === 'admin' || hash === 'courts' || hash === 'questions') return hash as Route
   return 'home'
 }
 
@@ -100,6 +102,11 @@ function handleAdminClick(): void {
 /** 用户菜单「球场管理」（仅管理员） */
 function handleCourtsClick(): void {
   window.location.hash = '#/courts'
+}
+
+/** 用户菜单「身份校验问题管理」（仅管理员） */
+function handleQuestionsClick(): void {
+  window.location.hash = '#/questions'
 }
 
 /** 从登录页返回官网（回到首页锚点，hash 变化会自动切回官网视图） */
@@ -143,6 +150,7 @@ onBeforeUnmount(() => {
     <SettingsPage v-else-if="route === 'settings'" @back="handleBack" />
     <AdminUsersPage v-else-if="route === 'admin'" @back="handleBack" />
     <CourtManagementPage v-else-if="route === 'courts'" @back="handleBack" />
+    <QuestionManagementPage v-else-if="route === 'questions'" @back="handleBack" />
     <AuthPage
       v-else-if="route !== 'home'"
       :tab="authTab"
@@ -163,7 +171,7 @@ onBeforeUnmount(() => {
           ×
         </button>
       </div>
-      <NavHeader @cta-click="handleCtaClick" @profile-click="handleProfileClick" @settings-click="handleSettingsClick" @admin-click="handleAdminClick" @courts-click="handleCourtsClick" />
+      <NavHeader @cta-click="handleCtaClick" @profile-click="handleProfileClick" @settings-click="handleSettingsClick" @admin-click="handleAdminClick" @courts-click="handleCourtsClick" @questions-click="handleQuestionsClick" />
       <main>
         <HeroSection />
         <FeaturesSection />

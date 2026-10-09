@@ -46,6 +46,8 @@ export interface Game {
   creatorAvatar?: string | null
   creatorGender?: number | null
   creatorRating?: number | null
+  /** 封面图 URL（可空，空时前端用默认图） */
+  cover?: string | null
   /** 当前报名人数 */
   registeredCount: number
   registrations: RegistrationItem[]

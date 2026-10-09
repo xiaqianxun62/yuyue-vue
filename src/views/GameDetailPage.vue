@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { cancelRegisterGame, getGame, registerGame, type Game } from '../api/game'
 import { useAuth } from '../composables/useAuth'
-import TiandituMap from '../components/TiandituMap.vue'
+import QqMap from '../components/QqMap.vue'
 import SmartImage from '../components/SmartImage.vue'
 
 const props = defineProps<{ gameId: number }>()
@@ -75,10 +75,10 @@ const registered = computed(() => {
   return game.value.registrations.some((r) => r.userId === user.value!.userId)
 })
 
-const canHide = computed(() => {
+/*const canHide = computed(() => {
   if (!game.value || !user.value) return false
   return game.value.creatorId === user.value.userId || !!user.value.isAdmin
-})
+})*/
 
 const genderStat = computed(() => {
   const list = game.value?.registrations ?? []
@@ -100,6 +100,10 @@ function initialOf(name: string): string {
   if (!name) return '球'
   return name.trim().charAt(0).slice(0, 1)
 }
+
+/** 默认封面图（game.cover 为空时使用） */
+const DEFAULT_COVER = '/uploads/cover_1791509309948_6080.jpg'
+const coverUrl = computed(() => game.value?.cover || DEFAULT_COVER)
 
 async function handleJoin(): Promise<void> {
   if (!isLoggedIn.value) { window.location.hash = '#/login'; return }
@@ -167,12 +171,18 @@ function openMini(): void {
     <div v-else-if="error" class="wall-state err">{{ error }}</div>
 
     <main v-else-if="game" class="content">
-      <!-- 主信息卡 -->
-      <section class="card head-card">
-        <div class="head-top">
+      <!-- 封面 Banner -->
+      <section class="cover-banner">
+        <SmartImage :src="coverUrl" class="cover-img" alt="" />
+        <div class="cover-overlay" />
+        <div class="cover-info">
           <h1 class="head-title">{{ game.title }}</h1>
           <span class="status-tag" :class="statusClass">{{ statusText }}</span>
         </div>
+      </section>
+
+      <!-- 主信息卡 -->
+      <section class="card head-card">
         <div v-if="game.remark" class="head-remark">{{ game.remark }}</div>
 
         <div class="info-grid">
@@ -230,14 +240,41 @@ function openMini(): void {
 
       <!-- 地图 -->
       <section v-if="game.courtLat && game.courtLng" class="card map-card">
-        <h2 class="card-title">球场位置</h2>
-        <TiandituMap
+        <div class="map-card-head">
+          <div class="map-card-title-row">
+            <span class="card-title">📍 {{ game.courtName || game.location || '球场位置' }}</span>
+            <a
+              class="nav-link"
+              target="_blank"
+              :href="`https://api.tianditu.gov.cn/v2/search?postStr=${game.courtLng},${game.courtLat}&type=geocode`"
+            >打开地图 →</a>
+          </div>
+          <div v-if="game.courtName && game.location !== game.courtName" class="map-address">{{ game.location }}</div>
+        </div>
+        <QqMap
           :lat="Number(game.courtLat)"
           :lng="Number(game.courtLng)"
           :title="game.courtName || game.location || '球场位置'"
-          height="300px"
-          :zoom="15"
+          :subtitle="(game.courtName && game.location && game.location !== game.courtName) ? game.location : ''"
+          height="380px"
+          :zoom="16"
         />
+        <div class="map-actions">
+          <a
+            class="map-btn primary"
+            :href="`https://uri.amap.com/navigation?to=${game.courtLng},${game.courtLat},${encodeURIComponent(game.courtName || game.location || '球场')}&mode=car&policy=1`"
+            target="_blank"
+          >
+            🧭 导航到此（高德）
+          </a>
+          <a
+            class="map-btn"
+            :href="`https://map.qq.com/api/dir?from=我的位置&to=${game.courtLat},${game.courtLng}&type=0`"
+            target="_blank"
+          >
+            🗺️ 腾讯地图
+          </a>
+        </div>
       </section>
 
       <!-- 报名名单 -->
@@ -294,6 +331,32 @@ function openMini(): void {
   background: #fff; border-radius: 14px; padding: 20px 22px;
   box-shadow: 0 2px 8px rgba(20,102,91,.06);
 }
+
+/* ===== 封面 Banner ===== */
+.cover-banner {
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  height: 200px;
+  margin-bottom: -4px;
+}
+.cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.cover-overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(26,46,42,0) 40%, rgba(26,46,42,0.85) 100%);
+}
+.cover-info {
+  position: absolute;
+  left: 20px; right: 20px; bottom: 16px;
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;
+}
+.cover-info .head-title { color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,.4); }
+.cover-info .status-tag { flex-shrink: 0; }
 
 /* ===== 头卡 ===== */
 .head-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
@@ -389,4 +452,48 @@ function openMini(): void {
 
 /* ===== 地图卡 ===== */
 .map-card { padding-bottom: 14px; }
+.map-card-head { margin-bottom: 10px; }
+.map-card-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.nav-link {
+  font-size: 12px;
+  color: #14665b;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+.nav-link:hover { text-decoration: underline; }
+.map-address {
+  margin-top: 3px;
+  font-size: 12px;
+  color: #6b7b78;
+}
+.map-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+.map-btn {
+  flex: 1;
+  text-align: center;
+  padding: 9px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #14665b;
+  background: #eef5f2;
+  text-decoration: none;
+  transition: all .15s;
+}
+.map-btn:hover { background: #dceee8; color: #0e4a42; }
+.map-btn.primary {
+  background: linear-gradient(135deg, #14665b, #1a8575);
+  color: #fff;
+}
+.map-btn.primary:hover {
+  background: linear-gradient(135deg, #0f544a, #156c5f);
+}
 </style>

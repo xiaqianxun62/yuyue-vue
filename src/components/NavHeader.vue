@@ -13,6 +13,8 @@ const emit = defineEmits<{
   adminClick: []
   /** 用户菜单「球场场地管理」（仅管理员） */
   courtsClick: []
+  /** 用户菜单「身份校验问题管理」（仅管理员） */
+  questionsClick: []
 }>()
 
 const { isLoggedIn, isAdmin, user, logout } = useAuth()
@@ -289,6 +291,10 @@ onBeforeUnmount(() => {
             <SvgIcon type="location" :size="15" />
             球场管理
           </button>
+          <button v-if="isAdmin" type="button" class="dropdown-item" @click="emit('questionsClick')">
+            <SvgIcon type="engine" :size="15" />
+            问题管理
+          </button>
           <button type="button" class="dropdown-item danger" @click="handleLogout">
             <SvgIcon type="logout" :size="15" />
             退出登录
@@ -382,6 +388,10 @@ onBeforeUnmount(() => {
           <button v-if="isAdmin" type="button" class="drawer-profile" @click="emit('courtsClick')">
             <SvgIcon type="location" :size="16" />
             球场管理
+          </button>
+          <button v-if="isAdmin" type="button" class="drawer-profile" @click="emit('questionsClick')">
+            <SvgIcon type="engine" :size="16" />
+            问题管理
           </button>
           <button type="button" class="drawer-logout" @click="handleLogout">
             <SvgIcon type="logout" :size="16" />
